@@ -56,6 +56,11 @@ contract ERC721FacetTest is Test, IDiamondCut {
 
     function testMintingFromDiamond() public {
         ERC721Facet(address(diamond)).mint(user1, 1);
+        
+        string memory uri = ERC721Facet(address(diamond)).tokenURI(1);
+        console.log("Minted NFT Token URI:");
+        console.log(uri);
+
         assertEq(ERC721Facet(address(diamond)).balanceOf(user1), 1);
         assertEq(ERC721Facet(address(diamond)).ownerOf(1), user1);
     }
