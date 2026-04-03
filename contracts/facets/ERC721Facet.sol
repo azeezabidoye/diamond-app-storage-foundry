@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {AppStorage} from "../libraries/LibAppStorage.sol";
+import {LibBase64} from "../libraries/LibBase64.sol";
 
 contract ERC721Facet {
     AppStorage internal s;
@@ -119,4 +120,57 @@ contract ERC721Facet {
     ) external {
         transferFrom(_from, _to, _tokenId);
     }
+
+    function _uint2str(uint _i) internal pure returns (string memory _uintAsString) {
+        if (_i == 0) {
+            return "0";
+        }
+        uint j = _i;
+        uint len;
+        while (j != 0) {
+            len++;
+            j /= 10;
+        }
+        bytes memory bstr = new bytes(len);
+        uint k = len;
+        while (_i != 0) {
+            k = k - 1;
+            uint8 temp = (48 + uint8(_i - _i / 10 * 10));
+            bytes1 b1 = bytes1(temp);
+            bstr[k] = b1;
+            _i /= 10;
+        }
+        return string(bstr);
+    }
+
+    function generateSVG(uint256 _tokenId) internal pure returns (string memory) {
+        return string(
+            abi.encodePacked(
+                "<svg xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='xMinYMin meet' viewBox='0 0 350 350'>",
+                "<style>.base { fill: white; font-family: serif; font-size: 24px; }</style>",
+                "<rect width='100%' height='100%' fill='black' />",
+                "<text x='50%' y='50%' class='base' dominant-baseline='middle' text-anchor='middle'>",
+                "Diamond NFT #", _uint2str(_tokenId),
+                "</text>",
+                "</svg>"
+            )
+        );
+    }
+
+    function tokenURI(uint256 _tokenId) external view returns (string memory) {
+        require(s.owners[_tokenId] != address(0), "ERC721: URI query for nonexistent token");
+        
+        string memory svg = generateSVG(_tokenId);
+        
+        string memory json = string(
+            abi.encodePacked(
+                '{"name": "Diamond NFT #', _uint2str(_tokenId), '", ',
+                '"description": "An on-chain SVG NFT minted from Diamond Protocol", ',
+                '"image": "data:image/svg+xml;base64,', LibBase64.encode(bytes(svg)), '"}'
+            )
+        );
+
+        return string(abi.encodePacked("data:application/json;base64,", LibBase64.encode(bytes(json))));
+    }
 }
+

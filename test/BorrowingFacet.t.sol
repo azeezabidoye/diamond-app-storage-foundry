@@ -5,16 +5,16 @@ import "../contracts/interfaces/IDiamondCut.sol";
 import "../contracts/facets/DiamondCutFacet.sol";
 import "../contracts/facets/ERC721Facet.sol";
 import "../contracts/facets/ERC20Facet.sol";
-import "../contracts/facets/StakingFacet.sol";
+import "../contracts/facets/BorrowingFacet.sol";
 import "forge-std/Test.sol";
 import "../contracts/Diamond.sol";
 
-contract StakingFacetTest is Test, IDiamondCut {
+contract BorrowingFacetTest is Test, IDiamondCut {
     Diamond diamond;
     DiamondCutFacet dCutFacet;
     ERC721Facet erc721Facet;
     ERC20Facet erc20Facet;
-    StakingFacet stakingFacet;
+    BorrowingFacet borrowingFacet;
     
     address user1 = address(0x1);
 
@@ -23,58 +23,44 @@ contract StakingFacetTest is Test, IDiamondCut {
         diamond = new Diamond(address(this), address(dCutFacet));
         erc721Facet = new ERC721Facet();
         erc20Facet = new ERC20Facet();
-        stakingFacet = new StakingFacet();
+        borrowingFacet = new BorrowingFacet();
 
         FacetCut[] memory cut = new FacetCut[](3);
-
-        cut[0] = FacetCut({
-            facetAddress: address(erc721Facet),
-            action: FacetCutAction.Add,
-            functionSelectors: generateSelectors("ERC721Facet")
-        });
-        
-        cut[1] = FacetCut({
-            facetAddress: address(erc20Facet),
-            action: FacetCutAction.Add,
-            functionSelectors: generateSelectors("ERC20Facet")
-        });
-
-        cut[2] = FacetCut({
-            facetAddress: address(stakingFacet),
-            action: FacetCutAction.Add,
-            functionSelectors: generateSelectors("StakingFacet")
-        });
+        cut[0] = FacetCut(address(erc721Facet), FacetCutAction.Add, generateSelectors("ERC721Facet"));
+        cut[1] = FacetCut(address(erc20Facet), FacetCutAction.Add, generateSelectors("ERC20Facet"));
+        cut[2] = FacetCut(address(borrowingFacet), FacetCutAction.Add, generateSelectors("BorrowingFacet"));
 
         IDiamondCut(address(diamond)).diamondCut(cut, address(0x0), "");
     }
 
-    function testStaking() public {
+    function testBorrowing() public {
         ERC721Facet(address(diamond)).mint(user1, 1);
         
         vm.startPrank(user1);
-        ERC721Facet(address(diamond)).approve(address(diamond), 1);
-        StakingFacet(address(diamond)).stake(1);
+        BorrowingFacet(address(diamond)).borrow(1, 500 * 10**18);
         vm.stopPrank();
 
         assertEq(ERC721Facet(address(diamond)).ownerOf(1), address(diamond));
+        assertEq(ERC20Facet(address(diamond)).erc20BalanceOf(user1), 500 * 10**18);
     }
 
-    function testUnstakingAndRewards() public {
+    function testRepayment() public {
         ERC721Facet(address(diamond)).mint(user1, 1);
         
         vm.startPrank(user1);
-        StakingFacet(address(diamond)).stake(1);
+        BorrowingFacet(address(diamond)).borrow(1, 100 * 10**18);
         
-        // Fast forward 1 day
-        vm.warp(block.timestamp + 1 days);
-        
-        StakingFacet(address(diamond)).unstake(1);
+        // 5% interest
+        // User needs 105 tokens to repay. Right now they have 100. Let's mint them 5 more.
+        vm.stopPrank();
+        ERC20Facet(address(diamond)).mintERC20(user1, 5 * 10**18);
+
+        vm.startPrank(user1);
+        BorrowingFacet(address(diamond)).repay(1);
         vm.stopPrank();
 
         assertEq(ERC721Facet(address(diamond)).ownerOf(1), user1);
-        
-        // 100 tokens per day reward rate
-        assertEq(ERC20Facet(address(diamond)).erc20BalanceOf(user1), 100 * 10**18);
+        assertEq(ERC20Facet(address(diamond)).erc20BalanceOf(user1), 0);
     }
 
     function generateSelectors(string memory _facetName) internal returns (bytes4[] memory selectors) {
