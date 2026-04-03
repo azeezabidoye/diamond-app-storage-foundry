@@ -8,4 +8,8 @@ struct AppStorage {
     mapping(address => uint256) balances;
     mapping(uint256 => address) tokenApprovals;
     mapping(address => mapping(address => bool)) operatorApprovals;
+    
+    // Staking state
+    mapping(uint256 => address) stakerAddress;
+    mapping(uint256 => uint256) stakingStartTime;
 }
